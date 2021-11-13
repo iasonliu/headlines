@@ -1,5 +1,8 @@
 mod headlines;
-use std::{sync::mpsc::channel, thread};
+use std::{
+    sync::mpsc::{channel, sync_channel},
+    thread,
+};
 
 use eframe::{
     egui::{
@@ -7,9 +10,8 @@ use eframe::{
     },
     epi,
 };
-use headlines::{NewsCardData, PADDING};
+use headlines::{Msg, NewsCardData, PADDING};
 use newsapi::NewsAPI;
-use tracing::warn;
 
 impl epi::App for headlines::Headlines {
     fn setup(
@@ -19,20 +21,21 @@ impl epi::App for headlines::Headlines {
         _storage: Option<&dyn epi::Storage>,
     ) {
         let api_key = self.config.api_key.to_string();
-        let (news_tx, news_rx) = channel();
+        let (mut news_tx, news_rx) = channel();
+        let (app_tx, app_rx) = sync_channel(1);
+        self.app_tx = Some(app_tx);
         self.news_rx = Some(news_rx);
         thread::spawn(move || {
-            if let Ok(response) = NewsAPI::new(&api_key).fetch() {
-                let response_articles = response.articles();
-                for a in response_articles.iter() {
-                    let news = NewsCardData {
-                        title: a.title().to_string(),
-                        url: a.url().to_string(),
-                        desc: a.description().map(|s| s.to_string()).unwrap_or_default(),
-                    };
-                    if let Err(e) = news_tx.send(news) {
-                        tracing::error!("Error sending news data: {}", e);
-                    };
+            if !api_key.is_empty() {
+                fetch_news(&api_key, &mut news_tx);
+            } else {
+                loop {
+                    match app_rx.recv() {
+                        Ok(Msg::ApiKeySet(api_key)) => fetch_news(&api_key, &mut news_tx),
+                        Err(e) => {
+                            tracing::error!("app config error {}", e);
+                        }
+                    }
                 }
             }
         });
@@ -82,6 +85,27 @@ fn render_footer(ctx: &CtxRef) {
             ui.add_space(10.);
         })
     });
+}
+
+fn fetch_news(api_key: &str, news_tx: &mut std::sync::mpsc::Sender<NewsCardData>) {
+    if let Ok(response) = NewsAPI::new(&api_key).fetch() {
+        let resp_articles = response.articles();
+        for a in resp_articles.iter() {
+            let news = NewsCardData {
+                title: a.title().to_string(),
+                url: a.url().to_string(),
+                desc: a
+                    .description()
+                    .map(|s| s.to_string())
+                    .unwrap_or("...".to_string()),
+            };
+            if let Err(e) = news_tx.send(news) {
+                tracing::error!("Error sending news data: {}", e);
+            }
+        }
+    } else {
+        tracing::error!("failed fetching news");
+    }
 }
 
 fn render_header(ui: &mut Ui) {

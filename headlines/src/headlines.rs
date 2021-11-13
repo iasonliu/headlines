@@ -7,7 +7,15 @@ use eframe::{
 };
 use serde::{Deserialize, Serialize};
 
-use std::{borrow::Cow, iter::FromIterator, sync::mpsc::Receiver};
+use std::{
+    borrow::Cow,
+    iter::FromIterator,
+    sync::mpsc::{Receiver, SyncSender},
+};
+
+pub enum Msg {
+    ApiKeySet(String),
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct HeadlinesConfig {
@@ -29,6 +37,7 @@ pub struct Headlines {
     pub config: HeadlinesConfig,
     pub api_key_initialized: bool,
     pub news_rx: Option<Receiver<NewsCardData>>,
+    pub app_tx: Option<SyncSender<Msg>>,
 }
 pub const PADDING: f32 = 5.0;
 const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
@@ -49,6 +58,7 @@ impl Headlines {
             articles: vec![],
             config,
             news_rx: None,
+            app_tx: None,
         }
     }
     pub fn configure_fonts(&self, ctx: &egui::CtxRef) {
@@ -161,6 +171,9 @@ impl Headlines {
                     tracing::error!("Failed saving app state: {}", e);
                 }
                 self.api_key_initialized = true;
+                if let Some(tx) = &self.app_tx {
+                    tx.send(Msg::ApiKeySet(self.config.api_key.to_string()));
+                }
                 tracing::error!("api key set");
             }
             tracing::error!("{}", &self.config.api_key);
