@@ -1,56 +1,12 @@
 use eframe::{
-    egui::{self, FontDefinitions, FontFamily, Vec2},
+    egui::{self, CtxRef, Hyperlink, Label, Separator, TextStyle, TopBottomPanel, Ui, Vec2},
     epi,
 };
+use headlines::PADDING;
 
-use std::{borrow::Cow, iter::FromIterator};
-#[derive(Default)]
-struct Headlines {
-    articles: Vec<NewsCardData>,
-}
+mod headlines;
 
-struct NewsCardData {
-    title: String,
-    desc: String,
-    url: String,
-}
-
-impl Headlines {
-    fn new() -> Self {
-        let iter = (0..20).map(|a| NewsCardData {
-            title: format!("title{}", a),
-            desc: format!("desc{}", a),
-            url: format!("https://example.com/{}", a),
-        });
-
-        Self {
-            articles: Vec::from_iter(iter),
-        }
-    }
-    pub fn configure_fonts(&self, ctx: &egui::CtxRef) {
-        let mut font_def = FontDefinitions::default();
-        font_def.font_data.insert(
-            "MesloLGS".to_string(),
-            Cow::Borrowed(include_bytes!("../../MesloLGS_NF_Regular.ttf")),
-        );
-        font_def.family_and_size.insert(
-            eframe::egui::TextStyle::Heading,
-            (FontFamily::Proportional, 35.),
-        );
-        font_def.family_and_size.insert(
-            eframe::egui::TextStyle::Body,
-            (FontFamily::Proportional, 20.),
-        );
-        font_def
-            .fonts_for_family
-            .get_mut(&FontFamily::Proportional)
-            .unwrap()
-            .insert(0, "MesloLGS".to_string());
-        ctx.set_fonts(font_def);
-    }
-}
-
-impl epi::App for Headlines {
+impl epi::App for headlines::Headlines {
     fn setup(
         &mut self,
         ctx: &egui::CtxRef,
@@ -63,21 +19,47 @@ impl epi::App for Headlines {
         "Headlines"
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
+    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
+        self.render_top_panel(ctx);
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for a in &self.articles {
-                    ui.label(&a.title);
-                    ui.label(&a.url);
-                    ui.label(&a.desc);
-                }
-            })
+            render_header(ui);
+            egui::ScrollArea::auto_sized().show(ui, |ui| {
+                self.render_news_cards(ui);
+            });
+            render_footer(ctx);
         });
     }
 }
+fn render_footer(ctx: &CtxRef) {
+    TopBottomPanel::bottom("footer").show(ctx, |ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(10.);
+            ui.add(Label::new("API source: newsapi.org").monospace());
+            ui.add(
+                Hyperlink::new("https://github.com/emilk/egui")
+                    .text("Made with egui")
+                    .text_style(TextStyle::Monospace),
+            );
+            ui.add(
+                Hyperlink::new("https://github.com/creativcoder/headlines")
+                    .text("creativcoder/headlines")
+                    .text_style(TextStyle::Monospace),
+            );
+            ui.add_space(10.);
+        })
+    });
+}
 
+fn render_header(ui: &mut Ui) {
+    ui.vertical_centered(|ui| {
+        ui.heading("headlines");
+    });
+    ui.add_space(PADDING);
+    let sep = Separator::default().spacing(20.);
+    ui.add(sep);
+}
 fn main() {
-    let app = Headlines::new();
+    let app = headlines::Headlines::new();
     let mut native_options = eframe::NativeOptions::default();
     native_options.initial_window_size = Some(Vec2::new(540., 960.));
     eframe::run_native(Box::new(app), native_options);
