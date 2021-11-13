@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use std::{
     borrow::Cow,
-    iter::FromIterator,
     sync::mpsc::{Receiver, SyncSender},
 };
 
@@ -125,7 +124,7 @@ impl Headlines {
                     if close_btn.clicked() {
                         frame.quit();
                     }
-                    let refresh_btn = ui.add(Button::new("🔄").text_style(egui::TextStyle::Body));
+                    let _refresh_btn = ui.add(Button::new("🔄").text_style(egui::TextStyle::Body));
                     let theme_btn = ui.add(
                         Button::new({
                             if self.config.dark_mode {
@@ -151,7 +150,7 @@ impl Headlines {
                 Ok(news_data) => {
                     self.articles.push(news_data);
                 }
-                Err(e) => tracing::warn!("Error receiving msg {}", e),
+                Err(_e) => {}
             }
         }
     }
@@ -172,7 +171,8 @@ impl Headlines {
                 }
                 self.api_key_initialized = true;
                 if let Some(tx) = &self.app_tx {
-                    tx.send(Msg::ApiKeySet(self.config.api_key.to_string()));
+                    tx.send(Msg::ApiKeySet(self.config.api_key.to_string()))
+                        .unwrap();
                 }
                 tracing::error!("api key set");
             }
