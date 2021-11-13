@@ -1,5 +1,7 @@
 use eframe::{
-    egui::{self, CtxRef, Hyperlink, Label, Separator, TextStyle, TopBottomPanel, Ui, Vec2},
+    egui::{
+        self, CtxRef, Hyperlink, Label, Separator, TextStyle, TopBottomPanel, Ui, Vec2, Visuals,
+    },
     epi,
 };
 use headlines::PADDING;
@@ -19,8 +21,13 @@ impl epi::App for headlines::Headlines {
         "Headlines"
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
-        self.render_top_panel(ctx);
+    fn update(&mut self, ctx: &egui::CtxRef, frame: &mut epi::Frame<'_>) {
+        if self.config.dark_mode {
+            ctx.set_visuals(Visuals::dark());
+        } else {
+            ctx.set_visuals(Visuals::light());
+        }
+        self.render_top_panel(ctx, frame);
         egui::CentralPanel::default().show(ctx, |ui| {
             render_header(ui);
             egui::ScrollArea::auto_sized().show(ui, |ui| {
