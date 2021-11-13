@@ -7,3 +7,8 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.14.0"
+confy = "0.4.0"
+serde = {version="1.0.130", features = ["derive"]}
+tracing = "0.1.29"
+tracing-subscriber = "0.3.1"
+newsapi = {path="../newsapi"}

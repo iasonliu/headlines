@@ -1,48 +1,54 @@
 use eframe::{
     egui::{
         self, Button, Color32, CtxRef, FontDefinitions, FontFamily, Hyperlink, Label, Layout,
-        Separator, TopBottomPanel,
+        Separator, TopBottomPanel, Window,
     },
     epi,
 };
+use serde::{Deserialize, Serialize};
 
-use std::{borrow::Cow, iter::FromIterator};
+use std::{borrow::Cow, iter::FromIterator, sync::mpsc::Receiver};
 
+#[derive(Serialize, Deserialize)]
 pub struct HeadlinesConfig {
     pub dark_mode: bool,
+    pub api_key: String,
 }
 
-impl HeadlinesConfig {
-    fn new() -> Self {
-        Self { dark_mode: true }
+impl Default for HeadlinesConfig {
+    fn default() -> Self {
+        Self {
+            dark_mode: Default::default(),
+            api_key: String::new(),
+        }
     }
 }
+
 pub struct Headlines {
-    articles: Vec<NewsCardData>,
+    pub articles: Vec<NewsCardData>,
     pub config: HeadlinesConfig,
+    pub api_key_initialized: bool,
+    pub news_rx: Option<Receiver<NewsCardData>>,
 }
 pub const PADDING: f32 = 5.0;
 const WHITE: Color32 = Color32::from_rgb(255, 255, 255);
 const BLACK: Color32 = Color32::from_rgb(0, 0, 0);
 const CYAN: Color32 = Color32::from_rgb(0, 255, 255);
 const RED: Color32 = Color32::from_rgb(255, 0, 0);
-struct NewsCardData {
-    title: String,
-    desc: String,
-    url: String,
+pub struct NewsCardData {
+    pub title: String,
+    pub desc: String,
+    pub url: String,
 }
 
 impl Headlines {
     pub fn new() -> Self {
-        let iter = (0..20).map(|a| NewsCardData {
-            title: format!("title{}", a),
-            desc: format!("desc------------{}", a),
-            url: format!("https://example.com/{}", a),
-        });
-
+        let config: HeadlinesConfig = confy::load("headlines").unwrap_or_default();
         Self {
-            articles: Vec::from_iter(iter),
-            config: HeadlinesConfig::new(),
+            api_key_initialized: !config.api_key.is_empty(),
+            articles: vec![],
+            config,
+            news_rx: None,
         }
     }
     pub fn configure_fonts(&self, ctx: &egui::CtxRef) {
@@ -127,5 +133,45 @@ impl Headlines {
             });
             ui.add_space(10.);
         });
+    }
+
+    pub fn preload_articles(&mut self) {
+        if let Some(rx) = &self.news_rx {
+            match rx.try_recv() {
+                Ok(news_data) => {
+                    self.articles.push(news_data);
+                }
+                Err(e) => tracing::warn!("Error receiving msg {}", e),
+            }
+        }
+    }
+
+    pub fn render_config(&mut self, ctx: &CtxRef) {
+        Window::new("Configuration").show(ctx, |ui| {
+            ui.label("Enter you API_KEY for newsapi.org");
+            let text_input = ui.text_edit_singleline(&mut self.config.api_key);
+            if text_input.lost_focus() && ui.input().key_pressed(egui::Key::Enter) {
+                if let Err(e) = confy::store(
+                    "headlines",
+                    HeadlinesConfig {
+                        dark_mode: self.config.dark_mode,
+                        api_key: self.config.api_key.to_string(),
+                    },
+                ) {
+                    tracing::error!("Failed saving app state: {}", e);
+                }
+                self.api_key_initialized = true;
+                tracing::error!("api key set");
+            }
+            tracing::error!("{}", &self.config.api_key);
+            ui.label("If you havn't registered for the API_KEY, head over to");
+            ui.hyperlink("https://newsapi.org");
+        });
+    }
+}
+
+impl Default for Headlines {
+    fn default() -> Self {
+        Self::new()
     }
 }
